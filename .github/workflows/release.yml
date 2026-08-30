@@ -1,0 +1,80 @@
+name: Release
+
+# Publishes a new version to Firefox AMO (unlisted / self-distributed),
+# hosts the signed .xpi on a GitHub Release, and points updates.json at it
+# so existing installs auto-update.
+#
+# Trigger: push a tag like `v0.1.3` (must equal package.json version).
+#
+# Repo secrets (Settings > Secrets and variables > Actions):
+#   FIREFOX_EXTENSION_ID   mnemose@yazgy
+#   FIREFOX_JWT_ISSUER     addons.mozilla.org > Developer Hub > Manage API Keys
+#   FIREFOX_JWT_SECRET     idem
+#
+# The AMO add-on must already exist (first version created via the AMO website
+# because of the source-code review).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Version matches tag
+        if: github.ref_type == 'tag'
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          [ "$PKG" = "${GITHUB_REF_NAME#v}" ] || { echo "package.json ($PKG) != tag"; exit 1; }
+
+      - name: Build + zip
+        run: npx wxt zip -b firefox
+
+      - name: Submit to AMO (unlisted, signed)
+        run: |
+          npx wxt submit \
+            --firefox-zip .output/*-firefox.zip \
+            --firefox-sources-zip .output/*-sources.zip
+        env:
+          FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+          FIREFOX_CHANNEL: unlisted
+
+      - name: Download the signed .xpi
+        run: node scripts/fetch-signed-xpi.mjs
+        env:
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+
+      - name: GitHub Release (hosts the .xpi)
+        run: gh release create "$GITHUB_REF_NAME" "mnemose-${GITHUB_REF_NAME#v}.xpi" --title "$GITHUB_REF_NAME" --notes "Firefox build."
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Point updates.json at the release + commit
+        run: |
+          node scripts/sync-updates-json.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet updates.json; then
+            git add updates.json
+            git commit -m "chore: updates.json -> ${GITHUB_REF_NAME#v}"
+            git push origin main
+          fi

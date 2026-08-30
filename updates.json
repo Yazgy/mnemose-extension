@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "mnemose@yazgy": {
+      "updates": [
+        {
+          "version": "0.1.2",
+          "update_link": "https://github.com/Yazgy/mnemose-extension/releases/download/v0.1.2/mnemose-0.1.2.xpi"
+        }
+      ]
+    }
+  }
+}
