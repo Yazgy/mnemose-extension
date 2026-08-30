@@ -3,6 +3,7 @@ import type { DetectedTab } from "./types";
 
 // Runs IN the page (must be fully self-contained — no outside references).
 function scrapePage(): {
+  url: string;
   title: string;
   ogTitle?: string;
   jsonLdTitle?: string;
@@ -53,63 +54,63 @@ function scrapePage(): {
     if (m) episode = Number(m[1]);
   }
 
-  return { title: document.title, ogTitle, jsonLdTitle, episode };
+  return { url: location.href, title: document.title, ogTitle, jsonLdTitle, episode };
+}
+
+function hostFrom(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
 
 export async function detectActiveTab(): Promise<DetectedTab | null> {
-  const [tab] = await browser.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-  if (!tab?.id || !tab.url) return null;
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return null;
 
-  let hostname = "";
+  // Reading the page directly (activeTab grant from the toolbar click) is the
+  // reliable path: it works even if Firefox withholds the `tabs` fields, and it
+  // sees the *current* title on JS-heavy streaming SPAs.
   try {
-    hostname = new URL(tab.url).hostname.replace(/^www\./, "");
-  } catch {
-    hostname = "";
-  }
-
-  const base: DetectedTab = {
-    url: tab.url,
-    hostname,
-    title: tab.title ?? "",
-  };
-
-  // executeScript fails on privileged pages (about:, addons, the store) — that
-  // is fine, we still have the tab title/url.
-  if (!/^https?:/.test(tab.url)) return base;
-
-  try {
-    const results = await browser.scripting.executeScript({
+    const [res] = await browser.scripting.executeScript({
       target: { tabId: tab.id },
       func: scrapePage,
     });
-    const scraped = results?.[0]?.result as
-      | ReturnType<typeof scrapePage>
-      | undefined;
-    if (scraped) {
+    const s = res?.result as ReturnType<typeof scrapePage> | undefined;
+    if (s) {
+      const url = s.url || tab.url || "";
       return {
-        ...base,
-        title: scraped.title || base.title,
-        ogTitle: scraped.ogTitle,
-        jsonLdTitle: scraped.jsonLdTitle,
-        episode: scraped.episode,
+        url,
+        hostname: hostFrom(url),
+        title: s.title || tab.title || "",
+        ogTitle: s.ogTitle,
+        jsonLdTitle: s.jsonLdTitle,
+        episode: s.episode,
       };
     }
   } catch {
-    // no scripting permission for this page — keep the basics
+    // privileged page (about:, addons, PDF viewer…) — fall back to tab fields
   }
 
-  return base;
+  const url = tab.url ?? "";
+  const title = tab.title ?? "";
+  if (!url && !title) return null;
+  return { url, hostname: hostFrom(url), title };
 }
 
 // Best guess at a searchable title from what the page gave us.
+const SITE_SUFFIX =
+  /\s*[|·–—-]\s*(netflix|crunchyroll|prime\s*video|disney\+?|adn|animation digital network|wakanim|voiranime|anime-?sama|vostfree|max|hbo\s*max|hulu|paramount\+?|apple\s*tv\+?|youtube).*$/i;
+const EPISODE_TAIL =
+  /\s*(?:[|·–—-]\s*)?\b(?:episode|épisode|ep\.?|s\d+\s*e\d+|saison\s*\d+|season\s*\d+|vostfr|vf|vo|streaming)\b.*$/i;
+
 export function guessQuery(detected: DetectedTab): string {
   const raw = detected.jsonLdTitle || detected.ogTitle || detected.title || "";
   return raw
-    .replace(/\s*[|–—-]\s*(netflix|crunchyroll|prime video|disney\+?|adn|wakanim|voiranime|anime-sama|max|hulu).*$/i, "")
+    .replace(SITE_SUFFIX, "")
+    .replace(EPISODE_TAIL, "")
     .replace(/\bwatch\b/i, "")
-    .replace(/\s+/g, " ")
+    .replace(/\s{2,}/g, " ")
     .trim();
 }

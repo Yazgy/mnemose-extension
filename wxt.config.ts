@@ -18,10 +18,12 @@ export default defineConfig({
     name: "Mnemose",
     description:
       "Update your Mnemose watch progress straight from the streaming page.",
-    // activeTab + scripting: read the current tab's title/metadata only when
-    // the user clicks the toolbar icon — no persistent content script, no
-    // broad host access on streaming sites.
-    permissions: ["activeTab", "scripting", "storage"],
+    // - tabs: read the active tab's URL + title for the auto-detect (Firefox
+    //   withholds these fields without it)
+    // - activeTab + scripting: read the page's og:title / JSON-LD, only when
+    //   you click the toolbar icon — no persistent content script, no broad
+    //   host access on streaming sites
+    permissions: ["tabs", "activeTab", "scripting", "storage"],
     // Only the Mnemose API. In dev we also allow the local server.
     host_permissions:
       mode === "development"
