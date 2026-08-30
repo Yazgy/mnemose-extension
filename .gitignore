@@ -1,0 +1,8 @@
+node_modules
+.output
+.wxt
+*.zip
+stats.html
+.env.submit
+.env.*.local
+.env.local
