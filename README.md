@@ -84,8 +84,12 @@ The `Release` GitHub Action then:
 
 **By hand** (first release, or without CI):
 1. `npx wxt zip -b firefox`, upload both zips on the AMO version page
-2. once signed, download the `.xpi` from the AMO version page
-3. create a GitHub Release `vX.Y.Z`, attach it as `mnemose-X.Y.Z.xpi`
+2. once signed, get the `.xpi`: right-click the AMO download link → *Save Link
+   As* (a plain click installs it), or copy it from
+   `~/.mozilla/firefox/<profile>/extensions/mnemose@yazgy.xpi` after installing
+3. create GitHub Release `vX.Y.Z`, attach the file twice — as `mnemose-X.Y.Z.xpi`
+   (referenced by `updates.json`) and as `mnemose-firefox.xpi` (the constant
+   "latest" link the Mnemose Settings button uses)
 4. `node scripts/sync-updates-json.mjs` and commit `updates.json`
 
 ## Connecting

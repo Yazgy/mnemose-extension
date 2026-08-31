@@ -64,7 +64,15 @@ jobs:
           FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
 
       - name: GitHub Release (hosts the .xpi)
-        run: gh release create "$GITHUB_REF_NAME" "mnemose-${GITHUB_REF_NAME#v}.xpi" --title "$GITHUB_REF_NAME" --notes "Firefox build."
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          # versioned name -> referenced by updates.json
+          # constant name  -> the stable "latest" link the Mnemose Settings
+          #                   download button uses
+          cp "mnemose-${V}.xpi" mnemose-firefox.xpi
+          gh release create "$GITHUB_REF_NAME" \
+            "mnemose-${V}.xpi" mnemose-firefox.xpi \
+            --title "$GITHUB_REF_NAME" --notes "Firefox build."
         env:
           GH_TOKEN: ${{ github.token }}
 
