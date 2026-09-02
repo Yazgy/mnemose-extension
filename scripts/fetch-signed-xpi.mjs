@@ -41,15 +41,34 @@ async function findFile() {
   return v?.file ?? null;
 }
 
+// AMO's automated signing is usually fast, but isn't guaranteed to finish
+// within a few minutes (e.g. a first-time submission needing a closer look).
+// 60 * 20s = 20 minutes before giving up.
+const MAX_ATTEMPTS = 60;
+const POLL_INTERVAL_MS = 20_000;
+
 let file = null;
-for (let i = 0; i < 20; i += 1) {
+let signed = false;
+for (let i = 0; i < MAX_ATTEMPTS; i += 1) {
   file = await findFile();
-  if (file?.url && (file.status === "public" || file.status === "approved" || file.signed)) break;
-  console.log(`waiting for signing… (${i + 1}/20, status=${file?.status ?? "?"})`);
-  await sleep(15_000);
+  if (file?.url && (file.status === "public" || file.status === "approved" || file.signed)) {
+    signed = true;
+    break;
+  }
+  console.log(`waiting for signing… (${i + 1}/${MAX_ATTEMPTS}, status=${file?.status ?? "?"})`);
+  await sleep(POLL_INTERVAL_MS);
 }
-if (!file?.url) {
-  console.error(`No signed file for ${version}`);
+if (!signed) {
+  // Never publish an unsigned build — fail loudly instead. Once AMO shows
+  // it as approved (addons.mozilla.org/developers/addon/mnemose/versions),
+  // re-run this release with `republish_only` to fetch + publish it without
+  // resubmitting.
+  console.error(
+    `Gave up waiting for AMO to sign ${version} after ${MAX_ATTEMPTS} attempts ` +
+      `(last status: ${file?.status ?? "unknown"}). Check ` +
+      "https://addons.mozilla.org/developers/addon/mnemose/versions — once it shows " +
+      "as approved, re-run this workflow with republish_only=true.",
+  );
   process.exit(1);
 }
 

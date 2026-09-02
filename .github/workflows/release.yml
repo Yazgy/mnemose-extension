@@ -18,6 +18,15 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      republish_only:
+        description: >-
+          Skip AMO submission and just fetch + (re)publish the file already
+          approved for the current package.json version. Use this when a
+          previous run gave up before AMO finished signing (check
+          addons.mozilla.org/developers/addon/mnemose/versions first).
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -44,9 +53,11 @@ jobs:
           [ "$PKG" = "${GITHUB_REF_NAME#v}" ] || { echo "package.json ($PKG) != tag"; exit 1; }
 
       - name: Build + zip
+        if: github.event.inputs.republish_only != 'true'
         run: npx wxt zip -b firefox
 
       - name: Submit to AMO (unlisted, signed)
+        if: github.event.inputs.republish_only != 'true'
         run: |
           npx wxt submit \
             --firefox-zip .output/*-firefox.zip \
@@ -65,14 +76,17 @@ jobs:
 
       - name: GitHub Release (hosts the .xpi)
         run: |
-          V="${GITHUB_REF_NAME#v}"
+          # Derived from package.json, not GITHUB_REF_NAME — the latter is
+          # "main" on a workflow_dispatch run, not a version tag.
+          V=$(node -p "require('./package.json').version")
+          TAG="v$V"
           # versioned name -> referenced by updates.json
           # constant name  -> the stable "latest" link the Mnemose Settings
           #                   download button uses
           cp "mnemose-${V}.xpi" mnemose-firefox.xpi
-          gh release create "$GITHUB_REF_NAME" \
-            "mnemose-${V}.xpi" mnemose-firefox.xpi \
-            --title "$GITHUB_REF_NAME" --notes "Firefox build."
+          gh release create "$TAG" "mnemose-${V}.xpi" mnemose-firefox.xpi \
+            --title "$TAG" --notes "Firefox build." \
+            || gh release upload "$TAG" "mnemose-${V}.xpi" mnemose-firefox.xpi --clobber
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -83,6 +97,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet updates.json; then
             git add updates.json
-            git commit -m "chore: updates.json -> ${GITHUB_REF_NAME#v}"
+            git commit -m "chore: updates.json -> $(node -p "require('./package.json').version")"
             git push origin main
           fi
