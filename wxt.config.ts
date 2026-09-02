@@ -44,10 +44,12 @@ export default defineConfig({
         // og:title / JSON-LD of the tab you're on and send it (plus your
         // chosen status / episode / rating) to your own Mnemose account.
         // https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/
+        // `has_previous_consent` isn't a real field in this schema (despite
+        // some docs implying otherwise) — Firefox 140+ rejects it as an
+        // unexpected property and treats the whole add-on as corrupt.
         data_collection_permissions: {
           required: ["websiteContent"],
           optional: [],
-          has_previous_consent: false,
         },
       },
     },
