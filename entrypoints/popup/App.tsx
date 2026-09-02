@@ -16,6 +16,9 @@ const BASE =
   (import.meta.env.WXT_MNEMOSE_URL as string) || "https://mnemose.com";
 const LANG = navigator.language?.toLowerCase().startsWith("fr") ? "fr" : "en";
 const T = LANG === "fr";
+// Read from the installed manifest, not hardcoded — stays correct across
+// releases without needing another spot bumped by hand.
+const VERSION = browser.runtime.getManifest().version;
 
 const STATUSES: WatchStatus[] = [
   "planned",
@@ -124,6 +127,7 @@ function Connect({ onConnected }: { onConnected: () => void }) {
         <span className="brand">
           Mnemose<span>.</span>
         </span>
+        <span className="muted">v{VERSION}</span>
       </div>
       <p className="muted">
         {T
@@ -287,9 +291,12 @@ function Main({
   return (
     <div className="col">
       <div className="header">
-        <span className="brand">
-          Mnemose<span>.</span>
-        </span>
+        <div className="row">
+          <span className="brand">
+            Mnemose<span>.</span>
+          </span>
+          <span className="muted">v{VERSION}</span>
+        </div>
         <div className="row">
           <span className="muted">{profile.username ?? "—"}</span>
           <button className="linklike" onClick={onDisconnect}>

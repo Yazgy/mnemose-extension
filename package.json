@@ -2,7 +2,7 @@
   "name": "mnemose-extension",
   "description": "Companion browser extension for Mnemose — update watch progress from the streaming page.",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
   "scripts": {
     "dev": "wxt",
